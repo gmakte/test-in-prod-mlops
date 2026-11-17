@@ -21,10 +21,12 @@ from vials.config import (
 class SimpleLoggingWrapper(mlflow.pyfunc.PythonModel):
     """Wrapper that logs inference requests and returns predictions."""
 
-    def __init__(self, model=None, model_path=None, log_path=INFERENCE_LOG_PATH, threshold=TRAINING["threshold"]):
+    def __init__(self, model=None, model_path=None, log_path=None, threshold=TRAINING["threshold"]):
         self.model = model
         self.model_path = model_path
-        self.log_path = log_path
+        # Do not pickle an absolute path: the model is trained on one OS and served on
+        # another (a pickled WindowsPath cannot be loaded on Linux). Resolved at use time.
+        self._log_path_override = str(log_path) if log_path is not None else None
         self.threshold = threshold
 
         image_size = IMAGE_SPECS["image_size"]
@@ -41,8 +43,11 @@ class SimpleLoggingWrapper(mlflow.pyfunc.PythonModel):
         # Device for inference
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # Ensure log directory exists
-        self.log_path.parent.mkdir(parents=True, exist_ok=True)
+    @property
+    def log_path(self):
+        if self._log_path_override is not None:
+            return Path(self._log_path_override)
+        return Path(INFERENCE_LOG_PATH)
 
     def get_raw_model(self):
         """Return the underlying PyTorch model for direct access."""
@@ -83,6 +88,7 @@ class SimpleLoggingWrapper(mlflow.pyfunc.PythonModel):
         """Append a request log entry to the JSON log file."""
         try:
             logs = []
+            self.log_path.parent.mkdir(parents=True, exist_ok=True)
             if self.log_path.exists():
                 with open(self.log_path, 'r') as f:
                     try:
