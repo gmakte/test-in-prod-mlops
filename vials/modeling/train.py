@@ -326,13 +326,7 @@ def main():
         train_transforms, val_transforms,
     )
 
-    cnn_model, _ = train_cnn_model(
-        train_loader, val_loader,
-        num_epochs=num_epochs,
-        learning_rate=learning_rate,
-        device=device,
-        random_seed=random_seed,
-    )
+    cnn_model, _ = train_cnn_model(train_loader, val_loader, device=device)
 
     # Tune threshold on validation set
     optimal_threshold = tune_threshold(cnn_model, val_loader, device=device)

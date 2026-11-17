@@ -77,6 +77,7 @@ with TRAINING_CONFIG_PATH.open() as f:
 
 HYPERPARAMS = training_config["training"]
 IMAGE_SPECS = training_config["image_specs"]
+TRAINING = {**HYPERPARAMS, "num_classes": IMAGE_SPECS["num_classes"]}
 
 try:
     from tqdm import tqdm
