@@ -1,0 +1,13 @@
+# Python 3.13. torch/torchvision are installed separately from the CPU index (see Dockerfile).
+mlflow==3.18.0
+numpy==2.5.5
+pandas
+scikit-learn
+scipy
+pillow
+requests
+python-dotenv
+loguru
+pyyaml
+fastapi
+uvicorn
