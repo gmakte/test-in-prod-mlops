@@ -24,3 +24,6 @@ requests
 # Running the notebooks headlessly
 nbconvert
 ipykernel
+
+uvicorn
+fastapi
