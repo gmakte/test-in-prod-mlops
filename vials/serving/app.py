@@ -23,7 +23,7 @@ scoring_proc = None
 @asynccontextmanager
 async def lifespan(app):
     global scoring_proc
-    scoring_proc = _start_scoring_server
+    scoring_proc = _start_scoring_server()
     yield
     scoring_proc.terminate()
     scoring_proc.wait(timeout=10)
