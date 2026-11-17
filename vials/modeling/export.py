@@ -14,29 +14,12 @@ import typer
 from vials.config import (
     ARTIFACT_PATH,
     EXPERIMENT_NAME,
-    MLFLOW_ARTIFACT_LOCATION,
-    MLFLOW_STATE_DIR,
-    MLFLOW_TRACKING_URI,
     MODEL_NAME,
     MODEL_PATH,
 )
+from vials.modeling.train import setup_mlflow_tracking
 
 app = typer.Typer()
-
-
-# TODO: import from vials.modeling.train once feat/train-modules is merged
-def setup_mlflow_tracking(experiment_name=None):
-    """Point MLflow at the local state dir and create the experiment if needed."""
-    MLFLOW_STATE_DIR.mkdir(parents=True, exist_ok=True)
-    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-
-    if experiment_name is None:
-        return
-
-    experiment = mlflow.get_experiment_by_name(experiment_name)
-    if experiment is None:
-        mlflow.create_experiment(experiment_name, artifact_location=MLFLOW_ARTIFACT_LOCATION)
-    mlflow.set_experiment(experiment_name)
 
 
 def get_best_run(experiment_name):
