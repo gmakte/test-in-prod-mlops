@@ -198,3 +198,4 @@ cython_debug/
 artifacts/
 mlflow-state/
 models/
+output/

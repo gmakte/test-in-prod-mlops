@@ -26,7 +26,7 @@ func Build(ctx context.Context) error {
 
 	// take the repo from root (".."), skipping big local folders in exclude
 	src := client.Host().Directory("..", dagger.HostDirectoryOpts{
-		Exclude: []string{".venv", "mlflow-state", "artifacts", "models", "data/raw", "go"},
+		Exclude: []string{".venv", "mlflow-state", "artifacts", "models", "output", "go", "data/raw/**/*.jpg"},
 	})
 
 	// a clean Python 3.13 container with our code and libraries installed
@@ -42,7 +42,28 @@ func Build(ctx context.Context) error {
 		WithExec([]string{"ruff", "check"}).
 		WithExec([]string{"python", "-m", "pytest", "tests"})
 
-	// run it
-	_, err = python.Sync(ctx)
-	return err
+	// DATA, TRAIN, EXPORT stages
+	python = python.
+		WithExec([]string{"python", "-m", "vials.dataset"}).
+		WithExec([]string{"python", "-m", "vials.modeling.train"}).
+		WithExec([]string{"python", "-m", "vials.modeling.export"})
+
+	// copy the results out of the container to output/
+	if _, err := python.Directory("/app/models").Export(ctx, "../output/models"); err != nil {
+		return err
+	}
+	if _, err := python.Directory("/app/artifacts").Export(ctx, "../output/artifacts"); err != nil {
+		return err
+	}
+
+	// building serving image with Dockerfile
+	serveImage := python.Directory("/app").DockerBuild(dagger.DirectoryDockerBuildOpts{
+		Dockerfile: "vials/serving/Dockerfile",
+	})
+	if _, err := serveImage.Sync(ctx); err != nil {
+		return err
+	}
+
+	fmt.Println("Pipeline finished: model exported to output/, serving image built")
+	return nil
 }
