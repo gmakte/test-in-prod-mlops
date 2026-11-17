@@ -1,0 +1,8 @@
+.venv
+data/
+mlflow-state/
+notebooks/
+.git
+.env
+.dvc
+__pycache__
