@@ -3,9 +3,11 @@ import mlflow
 import typer
 import numpy as np
 import json
+from pprint import pprint
 
 from vials.modeling.models import SimpleCNN
 from vials.modeling.eval import evaluate_cnn_model
+from vials.modeling.wrapper import SimpleLoggingWrapper
 from vials.dataset import print_section_header, create_dataloaders, load_splits
 from vials.features import get_transforms
 from vials.monitoring.drift import compute_baseline_statistics
@@ -13,6 +15,10 @@ from vials.monitoring.drift import compute_baseline_statistics
 import torch
 import torch.optim as optim
 import torch.nn as nn
+
+import time
+from mlflow.tracking.client import MlflowClient
+from mlflow.entities.model_registry.model_version_status import ModelVersionStatus
 
 from vials.config import (
     ARTIFACTS_DIR,
@@ -23,9 +29,9 @@ from vials.config import (
     MODELS_DIR,
     TRAINING,
     DRIFT_BASELINE_STATS_PATH,
-    DRIFT_KS_PVALUE_THRESHOLD,
-    DRIFT_DEFAULT_DAYS,
-    DRIFT_MEAN_DIFF_THRESHOLD,
+    PYTORCH_MODEL_PATH,
+    MODEL_RESULTS_PATH,
+    MODEL_NAME,
 )
 
 from sklearn.metrics import (
@@ -42,6 +48,7 @@ patience = TRAINING["scheduler_patience"]
 threshold = TRAINING["threshold"]
 early_stop_patience = TRAINING["early_stop_patience"]
 batch_size = TRAINING["batch_size"]
+model_name = MODEL_NAME
 
 def train_cnn_model(train_loader, val_loader, device=device):
     """Train the SimpleCNN model on glass vial images."""
@@ -293,7 +300,7 @@ def main():
         mlflow.end_run()
         print("Ended previous active MLflow run")
 
-    run = mlflow.start_run(run_name="training_notebook")
+    run = mlflow.start_run(run_name="training")
 
     # Log parameters to MLflow
     mlflow.log_param("model_architecture", "SimpleCNN")
@@ -319,7 +326,7 @@ def main():
         train_transforms, val_transforms,
     )
 
-    cnn_model, training_history = train_cnn_model(
+    cnn_model, _ = train_cnn_model(
         train_loader, val_loader,
         num_epochs=num_epochs,
         learning_rate=learning_rate,
@@ -331,9 +338,6 @@ def main():
     optimal_threshold = tune_threshold(cnn_model, val_loader, device=device)
     # Evaluate on test set with optimal threshold
     test_results = evaluate_cnn_model(cnn_model, test_loader, device=device, threshold=optimal_threshold)
-
-    mlflow.log_metric("optimal_threshold", optimal_threshold)
-    mlflow.log_metric("test_results", test_results)
 
     # Drift monitoring
     baseline_stats = compute_baseline_statistics(cnn_model, val_loader, threshold=optimal_threshold)
@@ -353,6 +357,77 @@ def main():
     mlflow.log_metric("baseline_confidence_mean", baseline_stats['confidence_statistics']['mean'])
     mlflow.log_metric("baseline_confidence_std", baseline_stats['confidence_statistics']['std'])
     mlflow.log_artifact(DRIFT_BASELINE_STATS_PATH, "drift_detection")
+    
+
+    # Saving artifacts
+    print("\nSaving model artifacts...")
+
+    # Save model state dict
+    torch.save({
+        'model_state_dict': cnn_model.state_dict(),
+        'architecture': SimpleCNN.__name__,
+        'input_shape': (3, 64, 64),
+        'output_shape': (1,),
+        'threshold': optimal_threshold,
+        'num_classes': num_classes,
+    }, PYTORCH_MODEL_PATH)
+    print(f"CNN model saved to {PYTORCH_MODEL_PATH}")
+
+    # Save model results
+    with open(MODEL_RESULTS_PATH, "w") as results_file:
+        json.dump(test_results, results_file, indent=2)
+    print(f"Model results saved to {MODEL_RESULTS_PATH}")
+
+    mlflow.log_param("classification_threshold", optimal_threshold)
+    mlflow.log_artifact(MODEL_RESULTS_PATH, "test_results")
+
+    # Log the pyfunc model with the SimpleLoggingWrapper as the model artifact
+    wrapper = SimpleLoggingWrapper(model=cnn_model)
+    mlflow.pyfunc.log_model(name="model_pyfunc", python_model=wrapper)
+    print("Logged pyfunc model to the MLflow run")
+
+
+    # Model registering & promotion
+    def wait_until_ready(model_name, model_version, max_attempts=10):
+        """Wait until the model version is READY in the registry."""
+        client = MlflowClient()
+        for attempt in range(max_attempts):
+            try:
+                model_version_details = client.get_model_version(name=model_name, version=model_version)
+                status = ModelVersionStatus.from_string(model_version_details.status)
+                print(f"Model status: {ModelVersionStatus.to_string(status)}")
+                if status == ModelVersionStatus.READY:
+                    print(f"Model {model_name} version {model_version} is READY")
+                    return True
+            except Exception as e:
+                print(f"Error checking model status (attempt {attempt + 1}/{max_attempts}): {e}")
+            time.sleep(1)
+        print(f"Model {model_name} version {model_version} did not become READY after {max_attempts} attempts")
+        return False
+
+    model_uri = f"runs:/{run.info.run_id}/model_pyfunc"
+    model_details = mlflow.register_model(model_uri=model_uri, name=model_name)
+    wait_until_ready(model_details.name, model_details.version)
+
+    print(f"Model registered successfully:")
+    print(f"  Name: {model_details.name}")
+    print(f"  Version: {model_details.version}")
+    print(f"  Stage: {model_details.current_stage}")
+
+    # Transition to staging
+    client = MlflowClient()
+    client.transition_model_version_stage(
+        name=model_name,
+        version=model_details.version,
+        stage="Staging",
+        archive_existing_versions=True,
+    )
+    client.set_model_version_tag(model_name, model_details.version, "deployed_to", "staging")
+    client.set_model_version_tag(model_name, model_details.version, "task", "classification")
+    client.set_registered_model_alias(name=model_name, alias="best", version=str(model_details.version))
+
+    print(f"Successfully transitioned {model_name} version {model_details.version} to Staging")
+    pprint(dict(model_details))
 
 if __name__ == "__main__":
     app()
