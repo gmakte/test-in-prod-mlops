@@ -1,6 +1,8 @@
+import asyncio
 from contextlib import asynccontextmanager
 import json
 import os
+import signal
 import subprocess
 import sys
 import urllib.error
@@ -25,7 +27,7 @@ async def lifespan(app):
     global scoring_proc
     scoring_proc = _start_scoring_server()
     yield
-    scoring_proc.terminate()
+    os.killpg(scoring_proc.pid, signal.SIGTERM)
     scoring_proc.wait(timeout=10)
 
 
@@ -56,6 +58,7 @@ def _start_scoring_server():
             "--no-conda",
         ],
         env=env,
+        start_new_session=True,
     )
     return proc
 
@@ -97,14 +100,11 @@ def version():
     return {"model_version": "unknown", "trained_at": None}
 
 
-@app.post("/invocations")
-@app.post("/infer")
-async def invocations(request: Request):
-    body = await request.body()
+def _forward(body, content_type):
     req = urllib.request.Request(
         f"http://{UPSTREAM_HOST}:{UPSTREAM_PORT}/invocations",
         data=body,
-        headers={"Content-Type": request.headers.get("content-type", "application/json")},
+        headers={"Content-Type": content_type},
         method="POST",
     )
     try:
@@ -126,6 +126,14 @@ async def invocations(request: Request):
             status_code=502,
             media_type="application/json",
         )
+
+
+@app.post("/invocations")
+@app.post("/infer")
+async def invocations(request: Request):
+    body = await request.body()
+    content_type = request.headers.get("content-type", "application/json")
+    return await asyncio.to_thread(_forward, body, content_type)
 
 
 @app.get("/drift")
