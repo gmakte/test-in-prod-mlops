@@ -1,3 +1,5 @@
+import mlflow
+import numpy as np
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
@@ -7,15 +9,14 @@ from sklearn.metrics import (
     recall_score,
     roc_auc_score,
 )
-
-import numpy as np
-import mlflow
+import torch
 
 from vials.config import TRAINING
 
-import torch
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def evaluate_cnn_model(model, test_loader, threshold=TRAINING["threshold"], device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
+
+def evaluate_cnn_model(model, test_loader, threshold=TRAINING["threshold"], device=DEVICE):
     """Evaluate the model on the test set: accuracy, F1, precision, recall, ROC-AUC.""" 
 
     print(f"\n{'='*60}")
@@ -58,16 +59,16 @@ def evaluate_cnn_model(model, test_loader, threshold=TRAINING["threshold"], devi
     conf_matrix = confusion_matrix(all_labels, all_preds)
     class_report = classification_report(all_labels, all_preds, output_dict=True)
 
-    print(f"\nTest Set Evaluation:")
+    print("\nTest Set Evaluation:")
     print(f"  Accuracy: {accuracy:.4f}")
     print(f"  F1-Score: {f1:.4f}")
     print(f"  Precision: {precision:.4f}")
     print(f"  Recall: {recall:.4f}")
     print(f"  ROC-AUC: {roc_auc:.4f}")
-    print(f"\nConfusion Matrix:")
-    print(f"  [[TN, FP],")
+    print("\nConfusion Matrix:")
+    print("  [[TN, FP],")
     print(f"   [FN, TP]] = {conf_matrix.tolist()}")
-    print(f"\nClassification Report:")
+    print("\nClassification Report:")
     print(classification_report(all_labels, all_preds))
 
     # Log metrics to MLflow

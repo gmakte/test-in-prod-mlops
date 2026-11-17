@@ -1,43 +1,36 @@
-from loguru import logger
-import mlflow
-import typer
-import numpy as np
 import json
 from pprint import pprint
-
-from vials.modeling.models import SimpleCNN
-from vials.modeling.eval import evaluate_cnn_model
-from vials.modeling.wrapper import SimpleLoggingWrapper
-from vials.dataset import print_section_header, create_dataloaders, load_splits
-from vials.features import get_transforms
-from vials.monitoring.drift import compute_baseline_statistics
-
-import torch
-import torch.optim as optim
-import torch.nn as nn
-
 import time
-from mlflow.tracking.client import MlflowClient
+
+from loguru import logger
+import mlflow
 from mlflow.entities.model_registry.model_version_status import ModelVersionStatus
+from mlflow.tracking.client import MlflowClient
+import numpy as np
+from sklearn.metrics import accuracy_score, f1_score
+import torch
+from torch import nn, optim
+import typer
 
 from vials.config import (
     ARTIFACTS_DIR,
+    DRIFT_BASELINE_STATS_PATH,
     EXPERIMENT_NAME,
     MLFLOW_ARTIFACT_LOCATION,
     MLFLOW_STATE_DIR,
     MLFLOW_TRACKING_URI,
-    MODELS_DIR,
-    TRAINING,
-    DRIFT_BASELINE_STATS_PATH,
-    PYTORCH_MODEL_PATH,
-    MODEL_RESULTS_PATH,
     MODEL_NAME,
+    MODEL_RESULTS_PATH,
+    MODELS_DIR,
+    PYTORCH_MODEL_PATH,
+    TRAINING,
 )
-
-from sklearn.metrics import (
-    f1_score,
-    accuracy_score
-)
+from vials.dataset import create_dataloaders, load_splits, print_section_header
+from vials.features import get_transforms
+from vials.modeling.eval import evaluate_cnn_model
+from vials.modeling.models import SimpleCNN
+from vials.modeling.wrapper import SimpleLoggingWrapper
+from vials.monitoring.drift import compute_baseline_statistics
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 num_epochs = TRAINING["num_epochs"]
@@ -204,7 +197,7 @@ def train_cnn_model(train_loader, val_loader, device=device):
         model.load_state_dict(history['best_model_state'])
         print(f"\nRestored best model weights (best val macro F1: {history['best_val_f1_macro']:.4f})")
 
-    print(f"\nTraining complete!")
+    print("\nTraining complete!")
     print(f"Best validation macro F1-score: {history['best_val_f1_macro']:.4f}")
 
     return model, history
@@ -393,7 +386,7 @@ def main():
                 if status == ModelVersionStatus.READY:
                     print(f"Model {model_name} version {model_version} is READY")
                     return True
-            except Exception as e:
+            except Exception as e: # noqa: BLE001 - keep notebook behaviour: don't crash on one failure
                 print(f"Error checking model status (attempt {attempt + 1}/{max_attempts}): {e}")
             time.sleep(1)
         print(f"Model {model_name} version {model_version} did not become READY after {max_attempts} attempts")
@@ -403,7 +396,7 @@ def main():
     model_details = mlflow.register_model(model_uri=model_uri, name=model_name)
     wait_until_ready(model_details.name, model_details.version)
 
-    print(f"Model registered successfully:")
+    print("Model registered successfully:")
     print(f"  Name: {model_details.name}")
     print(f"  Version: {model_details.version}")
     print(f"  Stage: {model_details.current_stage}")

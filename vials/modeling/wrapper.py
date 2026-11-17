@@ -1,22 +1,18 @@
 import base64
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from io import BytesIO
-
-import mlflow.pyfunc
-from PIL import Image
-import torchvision.transforms as transforms
-import torch
 import json
 from pathlib import Path
-import numpy as np
 
+import mlflow.pyfunc
+import numpy as np
+from PIL import Image
+import torch
+from torchvision import transforms
+
+from vials.config import IMAGE_SPECS, INFERENCE_LOG_PATH, TRAINING
 from vials.modeling.models import SimpleCNN
 
-from vials.config import (
-    IMAGE_SPECS,
-    TRAINING,
-    INFERENCE_LOG_PATH
-    )
 
 class SimpleLoggingWrapper(mlflow.pyfunc.PythonModel):
     """Wrapper that logs inference requests and returns predictions."""
@@ -82,7 +78,7 @@ class SimpleLoggingWrapper(mlflow.pyfunc.PythonModel):
         return model
 
     def _get_timestamp_iso(self):
-        return datetime.now(timezone.utc).isoformat()
+        return datetime.now(UTC).isoformat()
 
     def _log_request(self, request_data):
         """Append a request log entry to the JSON log file."""
@@ -102,7 +98,7 @@ class SimpleLoggingWrapper(mlflow.pyfunc.PythonModel):
 
             with open(self.log_path, 'w') as f:
                 json.dump(logs, f, indent=2)
-        except Exception as e:
+        except Exception as e: # noqa: BLE001 - keep notebook behaviour: don't crash on one failure
             print(f"Warning: Failed to log request: {e}")
 
     def preprocess_image(self, image_input):
@@ -125,7 +121,7 @@ class SimpleLoggingWrapper(mlflow.pyfunc.PythonModel):
                 try:
                     decoded_bytes = base64.b64decode(image_input)
                     image = Image.open(BytesIO(decoded_bytes)).convert('RGB')
-                except Exception as e:
+                except Exception as e: # noqa: BLE001 - keep notebook behaviour: don't crash on one failure
                     raise ValueError(
                         f"Cannot process string input '{image_input[:50]}...': "
                         f"not an existing file path and not valid base64 image data: {e}"
@@ -153,8 +149,8 @@ class SimpleLoggingWrapper(mlflow.pyfunc.PythonModel):
                 image_inputs = model_input['data']
             else:
                 # Try to extract inputs from any key
-                for _, value in model_input.items():
-                    if isinstance(value, (list, str, np.ndarray, bytes)) or isinstance(value, Path):
+                for value in model_input.values():
+                    if isinstance(value, (list, str, np.ndarray, bytes, Path)):
                         image_inputs = [value] if isinstance(value, (str, Path, np.ndarray, bytes)) else value
                         break
                 else:
@@ -206,7 +202,7 @@ class SimpleLoggingWrapper(mlflow.pyfunc.PythonModel):
                 }
                 self._log_request(log_entry)
 
-            except Exception as e:
+            except Exception as e: # noqa: BLE001 - keep notebook behaviour: don't crash on one failure
                 print(f"Error processing image {image_input}: {e}")
                 predictions.append(None)
                 confidences.append(None)
