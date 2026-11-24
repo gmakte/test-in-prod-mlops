@@ -1,3 +1,4 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
 loguru
 pip
 pytest
@@ -9,12 +10,12 @@ typer
 -e .
 
 # vials legacy
-torch
-torchvision
-mlflow>=2.18
+torch==2.15.0
+torchvision==0.29.2
+mlflow==3.18.0
 boto3
 dvc
-numpy
+numpy==2.5.5
 pandas
 scikit-learn
 scipy
