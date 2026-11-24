@@ -369,7 +369,7 @@ def main():
     mlflow.log_artifact(MODEL_RESULTS_PATH, "test_results")
 
     # Log the pyfunc model with the SimpleLoggingWrapper as the model artifact
-    wrapper = SimpleLoggingWrapper(model=cnn_model)
+    wrapper = SimpleLoggingWrapper(model=cnn_model, threshold=optimal_threshold)
     mlflow.pyfunc.log_model(name="model_pyfunc", python_model=wrapper)
     print("Logged pyfunc model to the MLflow run")
 
