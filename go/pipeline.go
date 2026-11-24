@@ -70,6 +70,28 @@ func Build(ctx context.Context) error {
 		return err
 	}
 
+	// model check: the new test F1 must not be worse than the baseline by more than 0.05
+	newResults, err := python.File("/app/artifacts/model_results.json").Contents(ctx)
+	if err != nil {
+		return err
+	}
+	baselineResults, err := python.File("/app/reports/baseline_metrics.json").Contents(ctx)
+	if err != nil {
+		return err
+	}
+	newF1, err := ParseF1([]byte(newResults))
+	if err != nil {
+		return err
+	}
+	baselineF1, err := ParseF1([]byte(baselineResults))
+	if err != nil {
+		return err
+	}
+	if err := CheckF1(newF1, baselineF1, 0.05); err != nil {
+		return err
+	}
+	fmt.Printf("Model check passed: test F1 %.3f (baseline %.3f)\n", newF1, baselineF1)
+
 	// building serving image with Dockerfile
 	serveImage := python.Directory("/app").DockerBuild(dagger.DirectoryDockerBuildOpts{
 		Dockerfile: "vials/serving/Dockerfile",
