@@ -93,3 +93,67 @@ func TestParseStages(t *testing.T) {
 		})
 	}
 }
+
+func TestParseF1(t *testing.T) {
+	testCases := []struct {
+		name      string
+		input     string
+		expect    float64
+		expectErr bool
+	}{
+		{"valid JSON returns f1_score", `{"accuracy": 0.79, "f1_score": 0.88}`, 0.88, false},
+		{"invalid JSON is an error", `{"f1_score": 0.88`, 0, true},
+		{"missing f1_score is an error", `{"accuracy": 0.79}`, 0, true},
+		{"string f1_score is an error", `{"f1_score": "high"}`, 0, true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := ParseF1([]byte(tc.input))
+			if tc.expectErr {
+				if err == nil {
+					t.Errorf("ParseF1(%q) expected an error, got nil", tc.input)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ParseF1(%q) unexpected error: %v", tc.input, err)
+			}
+			if got != tc.expect {
+				t.Errorf("ParseF1(%q) = %v, want %v", tc.input, got, tc.expect)
+			}
+		})
+	}
+}
+
+func TestCheckF1(t *testing.T) {
+	testCases := []struct {
+		name      string
+		newF1     float64
+		baseline  float64
+		tolerance float64
+		expectErr bool
+	}{
+		{"equal to baseline passes", 0.88, 0.88, 0.05, false},
+		{"within tolerance passes", 0.86, 0.88, 0.05, false},
+		{"better than baseline passes", 0.92, 0.88, 0.05, false},
+		{"far below baseline fails", 0.70, 0.88, 0.05, true},
+		{"negative F1 fails", -0.1, 0.88, 0.05, true},
+		{"F1 above 1 fails", 1.2, 0.88, 0.05, true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := CheckF1(tc.newF1, tc.baseline, tc.tolerance)
+			if tc.expectErr {
+				if err == nil {
+					t.Errorf("CheckF1(%v, %v, %v) expected an error, got nil", tc.newF1, tc.baseline, tc.tolerance)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("CheckF1(%v, %v, %v) unexpected error: %v", tc.newF1, tc.baseline, tc.tolerance, err)
+			}
+		})
+	}
+}
