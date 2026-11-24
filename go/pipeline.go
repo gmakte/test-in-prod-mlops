@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 
 	"dagger.io/dagger"
 )
@@ -17,6 +18,12 @@ func main() {
 }
 
 func Build(ctx context.Context) error {
+	// which stages to run, e.g. STAGES="test,data"; empty means all stages
+	stages, err := ParseStages(os.Getenv("STAGES"))
+	if err != nil {
+		return err
+	}
+
 	// starting Dagger, which then creates and controls docker containers
 	client, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stderr))
 	if err != nil {
@@ -37,16 +44,22 @@ func Build(ctx context.Context) error {
 		WithWorkdir("/app").
 		WithExec([]string{"pip", "install", "-r", "requirements.txt"})
 
-	// TEST stage: lint + unit tests
-	python = python.
-		WithExec([]string{"ruff", "check"}).
-		WithExec([]string{"python", "-m", "pytest", "tests"})
+	// run the selected stages (TEST, DATA, TRAIN, EXPORT) in order
+	for _, stage := range stages {
+		cmds, err := StageCommands(stage)
+		if err != nil {
+			return err
+		}
+		for _, cmd := range cmds {
+			python = python.WithExec(cmd)
+		}
+	}
 
-	// DATA, TRAIN, EXPORT stages
-	python = python.
-		WithExec([]string{"python", "-m", "vials.dataset"}).
-		WithExec([]string{"python", "-m", "vials.modeling.train"}).
-		WithExec([]string{"python", "-m", "vials.modeling.export"})
+	// without export there is no model to copy out, so just run the stages and stop
+	if !slices.Contains(stages, "export") {
+		_, err := python.Sync(ctx)
+		return err
+	}
 
 	// copy the results out of the container to output/
 	if _, err := python.Directory("/app/models").Export(ctx, "../output/models"); err != nil {

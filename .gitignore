@@ -197,5 +197,6 @@ cython_debug/
 # Local run outputs (notebooks)
 artifacts/
 mlflow-state/
+mlflow.db
 models/
 output/
