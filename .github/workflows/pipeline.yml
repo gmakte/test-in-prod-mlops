@@ -20,11 +20,22 @@ jobs:
         with:
           go-version-file: go/go.mod
 
+      - name: Go unit tests
+        working-directory: go
+        run: go test -v ./...
+
       - name: Run Dagger pipeline
         working-directory: go
         env:
           GITHUB_TOKEN: ${{ github.ref == 'refs/heads/main' && secrets.GITHUB_TOKEN || '' }}
         run: go run .
+
+      - name: Upload model artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: model
+          path: output/
+          if-no-files-found: error
   deploy:
     needs: pipeline
     if: github.ref == 'refs/heads/main'
