@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"dagger.io/dagger"
 )
@@ -65,5 +66,30 @@ func Build(ctx context.Context) error {
 	}
 
 	fmt.Println("Pipeline finished: model exported to output/, serving image built")
+	return nil
+}
+
+func Publish(ctx context.Context, client *dagger.Client, image *dagger.Container) error {
+	token := os.Getenv("GITHUB_TOKEN")
+	ref := os.Getenv("GITHUB_REF")
+	sha := os.Getenv("GITHUB_SHA")
+	owner := strings.ToLower(os.Getenv("GITHUB_REPOSITORY_OWNER"))
+
+	if token == "" || !ShouldPublish(ref) {
+		fmt.Println("Skipping publish")
+		return nil
+	}
+
+	secret := client.SetSecret("github-token", token)
+	address := fmt.Sprintf("ghcr.io/%s/model-serve:%s", owner, sha)
+
+	published, err := image.
+		WithRegistryAuth("ghcr.io", owner, secret).
+		Publish(ctx, address)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Published:", published)
 	return nil
 }
