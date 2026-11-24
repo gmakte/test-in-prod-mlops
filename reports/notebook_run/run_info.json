@@ -1,0 +1,11 @@
+{
+  "source": "notebooks/01_training.ipynb + notebooks/02_deployment.ipynb (original notebooks)",
+  "date": "2026-11-03",
+  "python_version": "3.13.18",
+  "torch_version": "2.15.0+cu132",
+  "mlflow_run_id": "0d1d0cd739d3426b9d59951841fc6eb4",
+  "mlflow_run_name": "training_notebook",
+  "registered_model": "cnn_model v1",
+  "classification_threshold": 0.025,
+  "summary_metrics": "reports/baseline_metrics.json"
+}

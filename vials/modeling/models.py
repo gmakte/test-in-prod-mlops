@@ -1,5 +1,5 @@
 import torch
-import torch.nn as nn
+from torch import nn
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Device:", device)
@@ -13,7 +13,7 @@ class SimpleCNN(nn.Module):
     """
 
     def __init__(self):
-        super(SimpleCNN, self).__init__()
+        super().__init__()
         # Convolutional layers
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
