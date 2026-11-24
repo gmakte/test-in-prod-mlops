@@ -5,16 +5,12 @@ import (
 	"strings"
 )
 
-// AllStages lists every pipeline stage in the order it runs.
 var AllStages = []string{"test", "data", "train", "export"}
 
-// ShouldPublish says whether this branch may publish a Docker image.
-// Only the main branch is allowed to.
 func ShouldPublish(ref string) bool {
 	return ref == "refs/heads/main"
 }
 
-// StageCommands returns the commands a stage runs inside the Python container.
 func StageCommands(stage string) ([][]string, error) {
 	switch stage {
 	case "test":
@@ -33,8 +29,6 @@ func StageCommands(stage string) ([][]string, error) {
 	}
 }
 
-// ParseStages turns a comma-separated list like "test, data" into stage names.
-// An empty or whitespace-only input means all stages.
 func ParseStages(input string) ([]string, error) {
 	if strings.TrimSpace(input) == "" {
 		return AllStages, nil
