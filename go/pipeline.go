@@ -65,6 +65,10 @@ func Build(ctx context.Context) error {
 		return err
 	}
 
+	if err := Publish(ctx, client, serveImage); err != nil {
+		return err
+	}
+
 	fmt.Println("Pipeline finished: model exported to output/, serving image built")
 	return nil
 }
