@@ -1,61 +1,40 @@
-# mlops
+# Vial defect detection
 
-<a target="_blank" href="https://cookiecutter-data-science.drivendata.org/">
-    <img src="https://img.shields.io/badge/CCDS-Project%20template-328F97?logo=cookiecutter" />
-</a>
+Group project for ITU MLOps course.
 
-Our project repo
+Made by Gabija, Marius and Philip.
 
-## Project Organization
+## What it is
+
+We trained a CNN that takes an image of a pharmaceutical vial and predicts if it is **good** or **defective**.
+
+The pipeline is written in Go with Dagger (`go/pipeline.go`). It runs the tests, downloads the data, trains the model and builds a Docker image with the model in it. GitHub Actions runs the pipeline on every PR, and when something is merged to `main` it pushes the image to ghcr.io and deploys it to Azure.
+
+## How to use it
+
+The model is running on Azure:
 
 ```
-├── LICENSE            <- Open-source license if one is chosen
-├── Makefile           <- Makefile with convenience commands like `make data` or `make train`
-├── README.md          <- The top-level README for developers using this project.
-├── data
-│   ├── external       <- Data from third party sources.
-│   ├── interim        <- Intermediate data that has been transformed.
-│   ├── processed      <- The final, canonical data sets for modeling.
-│   └── raw            <- The original, immutable data dump.
-│
-├── docs               <- A default mkdocs project; see www.mkdocs.org for details
-│
-├── models             <- Trained and serialized models, model predictions, or model summaries
-│
-├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-│                         the creator's initials, and a short `-` delimited description, e.g.
-│                         `1.0-jqp-initial-data-exploration`.
-│
-├── pyproject.toml     <- Project configuration file with package metadata for 
-│                         vials and configuration for tools like black
-│
-├── references         <- Data dictionaries, manuals, and all other explanatory materials.
-│
-├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
-│   └── figures        <- Generated graphics and figures to be used in reporting
-│
-├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
-│                         generated with `pip freeze > requirements.txt`
-│
-├── setup.cfg          <- Configuration file for flake8
-│
-└── vials   <- Source code for use in this project.
-    │
-    ├── __init__.py             <- Makes vials a Python module
-    │
-    ├── config.py               <- Store useful variables and configuration
-    │
-    ├── dataset.py              <- Scripts to download or generate data
-    │
-    ├── features.py             <- Code to create features for modeling
-    │
-    ├── modeling                
-    │   ├── __init__.py 
-    │   ├── predict.py          <- Code to run model inference with trained models          
-    │   └── train.py            <- Code to train models
-    │
-    └── plots.py                <- Code to create visualizations
+https://mlops-itu-jtk.nicetree-802a957f.norwayeast.azurecontainerapps.io
 ```
 
---------
+Endpoints:
+- `GET /health` – check if the model is ready
+- `GET /version` – which model version is running
+- `POST /invocations` – send an image (base64) and get a prediction
+- `GET /drift` – drift report based on the requests so far
 
+
+## Run it locally
+
+```bash
+cd go
+go run .
+```
+
+This trains the model and builds the image. To run the API locally:
+
+```bash
+docker build -f vials/serving/Dockerfile -t model-serve:dev .
+docker run --rm -p 5001:5001 model-serve:dev
+```
